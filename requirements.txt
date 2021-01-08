@@ -1,0 +1,5 @@
+Flask==1.1.2
+google-api-python-client==1.12.8
+google-auth-httplib2==0.0.4
+google-auth-oauthlib==0.4.2
+uWSGI==2.0.19.1
