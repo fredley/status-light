@@ -98,13 +98,7 @@
     }
 
     const parse_time = (t) => {
-      const m = moment(t)
-      const eod = moment().endOf('day')
-      let output = m.format('HH:mm')
-      if (m > eod) {
-        output += ' (tomorrow)'
-      }
-      return output
+      return moment(t).format('HH:mm')
     }
 
     const parse_message = (data) => {
@@ -115,13 +109,19 @@
     }
 
     const parse_cal = (cal) => {
-      return `<ul class="list-group">${cal.split('\n').filter(l => l).map(l => {
-        return `<li class="list-group-item">${l.split(' ').map(dt => `${parse_time(dt)}`).join('—')}</li>`
-      }).join('')}</ul>`
+      const now = moment()
+      const eod = moment().endOf('day')
+      const rows = cal.split('\n').filter(l => l).map(l => l.split(' ').map(dt => moment(dt))).filter(l => l[1] > now && l[0] < eod)
+      if (rows.length === 0){
+        return `<h5>No upcoming busy times</h5>`
+      }
+      return `<h5>Upcoming Busy Times</h5>
+      <ul class="list-group">
+        ${rows.map(l => `<li class="list-group-item">${l.map(dt => dt.format('HH:mm').join('—'))}</li>`)}
+      </ul>`
     }
 
     const update_status = (data) => {
-      console.log(data)
       const override = data.override_status ? `
       <h5><strong>Overridden until ${parse_time(data.until)}</strong></h5>
       ` : ''
@@ -129,10 +129,8 @@
       <div class="orb status-${data.status}"></div>
       <h4>Status: ${parse_status(data.status)}</h4>
       ${override}
-      <h5>Busy Times</h5>
       ${parse_cal(data.cal)}
       `
-      console.log(t)
       $('#state').html(t)
     }
 
