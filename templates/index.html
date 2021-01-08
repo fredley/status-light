@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Busy Status</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+  <style>
+    h1 {
+      margin-top: 3rem;
+    }
+    hr{
+      margin-bottom: 2rem;
+    }
+    h5{
+      font-size: 90%;
+      font-weight: bolder;
+      color: #888;
+      margin-top: 1rem;
+    }
+    #message {
+      margin-top: 1rem;
+    }
+    .orb{
+      display: inline-block;
+      float: left;
+      width:1.5rem;
+      height: 1.5rem;
+      border-radius: 2rem;
+      background: #999;
+      margin-right: 0.75rem;
+    }
+    .orb.status-0 { background: #198754; }
+    .orb.status-1 { background: #dc3545; }
+    .orb.status-2 { background: #fd7e14; }
+    .orb.status-3 { background: #333; }
+
+    .controls {
+      padding: 1rem;
+      background: #f0f0f0;
+      border-radius: 1rem;
+      margin-bottom: 2rem;
+      width: auto;
+    }
+
+    #state {
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Busy Orb</h1>
+    <hr>
+    <div class="row g-2">
+      <div class="col-sm">
+
+        <div class="controls">
+          <h4>Override Status</h4>
+          <div class="mb-3">
+            <div class="btn-group btn-group-toggle" data-toggle="buttons">
+              <button type="button" data-value="0" class="btn-status btn btn-success selected" data-class="success">Available</button>
+              <button type="button" data-value="2" class="btn-status btn btn-outline-warning" data-class="warning">Busy</button>
+              <button type="button" data-value="1" class="btn-status btn btn-outline-danger" data-class="danger">Do not disturb</button>
+              <button type="button" data-value="clear" class="btn-status btn btn-outline-secondary" data-class="secondary">Clear</button>
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="row g-3">
+              <div class="col-auto">
+                Hours: <input type="number" class="form-control" id="duration_hours" value="0">
+              </div>
+              <div class="col-auto">
+                Minutes: <input type="number" class="form-control" id="duration_minutes" value="0">
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" id="update">Update</button>
+        </div>
+      </div>
+      <div class="col-sm">
+        <div id='state'></div>
+      </div>
+    </div>
+  </div>
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js" integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js" integrity="sha512-qTXRIMyZIFb8iQcfjXWCO8+M5Tbc38Qi5WzdPOYZHIlZpzBHG3L3by84BBBOiRGiEb7KKtAOAs5qYdUiZiQNNQ==" crossorigin="anonymous"></script>
+  <script>
+    let status = 0;
+
+    const parse_status = (n) => {
+      switch (n) {
+        case "0": return "Available"
+        case "1": return "Do not Disturb"
+        case "2": return "Busy"
+        case "3": return "Off"
+        default: return "Unknown"
+      }
+    }
+
+    const parse_time = (t) => {
+      const m = moment(t)
+      const eod = moment().endOf('day')
+      let output = m.format('HH:mm')
+      if (m > eod) {
+        output += ' (tomorrow)'
+      }
+      return output
+    }
+
+    const parse_message = (data) => {
+      const parts = data.split(" ")
+      const status = parse_status(parts[0])
+      const time = parse_time(parts[2])
+      return `Showing ${status} until ${time}`
+    }
+
+    const parse_cal = (cal) => {
+      return `<ul class="list-group">${cal.split('\n').filter(l => l).map(l => {
+        return `<li class="list-group-item">${l.split(' ').map(dt => `${parse_time(dt)}`).join('—')}</li>`
+      }).join('')}</ul>`
+    }
+
+    const update_status = (data) => {
+      console.log(data)
+      const override = data.override_status ? `
+      <h5><strong>Overridden until ${parse_time(data.until)}</strong></h5>
+      ` : ''
+      const t = `
+      <div class="orb status-${data.status}"></div>
+      <h4>Status: ${parse_status(data.status)}</h4>
+      ${override}
+      <h5>Busy Times</h5>
+      ${parse_cal(data.cal)}
+      `
+      console.log(t)
+      $('#state').html(t)
+    }
+
+    const poll_status = () => {
+      $.ajax({
+        method: 'GET',
+        url: '/status/detail',
+        success: (data) => {
+          update_status(JSON.parse(data))
+        }
+      })
+    }
+
+    $(document).ready(() => {
+      $(".btn-status").on("click", function() {
+        if($(this).hasClass("selected")) { return }
+        $(".btn-status").each(function(){
+          $(this).removeClass("btn-" + $(this).attr("data-class")).removeClass("selected")
+          $(this).addClass("btn-outline-" + $(this).attr("data-class"))
+        })
+        $(this).removeClass("btn-outline-" + $(this).attr("data-class"))
+        $(this).addClass("btn-" + $(this).attr("data-class")).addClass("selected")
+        $('input').prop("disabled", $(this).attr("data-value") == "clear")
+      })
+
+      $("#update").on("click", () => {
+        let status, duration
+        if($(".btn-status.selected").attr("data-value") == "clear") {
+          status = 0
+          duration = 0
+        } else {
+          status = $(".btn-status.selected").attr("data-value")
+          duration = ($('#duration_hours').val() * 60 + $('#duration_minutes').val()) * 60
+        }
+        $.ajax({
+          method: 'POST',
+          url: '/status/update',
+          data: {
+            status: status,
+            duration: duration
+          },
+          success: (data) => {
+            $('#message').text(parse_message(data))
+            poll_status()
+          }
+        })
+      })
+      poll_status()
+      // setInterval(poll_status, 15000)
+    })
+  </script>
+</body>
+</html>

@@ -1,9 +1,10 @@
 import datetime
 from dateutil.parser import parse as parse_date
+import json
 import os
 import time
 
-from flask import Flask, request
+from flask import Flask, request, render_template
 app = Flask(__name__)
 
 STATUS_AVAILABLE = 0
@@ -14,8 +15,17 @@ STATUS_UNKNOWN = 4
 
 HOME_DIR = '/home/pi/status'
 
+START_DAY_HOUR = 9
+END_DAY_HOUR = 18
+
 status = STATUS_UNKNOWN
 override_status_until = None
+
+
+@app.route('/')
+def homepage():
+    return render_template('index.html')
+
 
 @app.route('/status/update', methods=['POST'])
 def update_status():
@@ -33,9 +43,15 @@ def update_status():
 def get_status():
     global status
     global override_status_until
-    print(override_status_until, status)
-    if override_status_until is not None and datetime.datetime.now() < override_status_until:
+
+    now = datetime.datetime.now()
+    if override_status_until is not None and now < override_status_until:
         return str(status)
+
+    current_hour = now.hour
+    if current_hour < START_DAY_HOUR or current_hour >= END_DAY_HOUR:
+        return str(STATUS_OFF)
+
 
     now = datetime.datetime.now(datetime.timezone.utc)
     with open(os.path.join(HOME_DIR, "gcal_status.txt")) as f:
@@ -49,3 +65,17 @@ def get_status():
         if dt_start <= now <= dt_end:
             return str(STATUS_BUSY)
     return str(STATUS_AVAILABLE)
+
+
+@app.route('/status/detail')
+def get_detail():
+    data = {
+        'status': get_status(),
+    }
+    with open(os.path.join(HOME_DIR, "gcal_status.txt")) as f:
+        data['cal'] = f.read()
+    if override_status_until is not None and datetime.datetime.now() < override_status_until:
+        data['override_status'] = status,
+        data['until'] = override_status_until.isoformat()
+    return json.dumps(data)
+
