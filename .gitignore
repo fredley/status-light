@@ -2,3 +2,5 @@ token.pickle
 env/
 credentials.json
 *__pycache__*
+gcal_status.txt
+.DS_Store

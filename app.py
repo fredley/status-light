@@ -4,7 +4,7 @@ import json
 import os
 import time
 
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, send_from_directory
 app = Flask(__name__)
 
 STATUS_AVAILABLE = 0
@@ -13,7 +13,7 @@ STATUS_INTERUPTIBLE = 2
 STATUS_OFF = 3
 STATUS_UNKNOWN = 4
 
-HOME_DIR = '/home/pi/status'
+HOME_DIR = '/Users/tom/dev/status-light'
 
 START_DAY_HOUR = 9
 END_DAY_HOUR = 18
@@ -25,6 +25,11 @@ override_status_until = None
 @app.route('/')
 def homepage():
     return render_template('index.html')
+
+
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
 
 
 @app.route('/status/update', methods=['POST'])
@@ -48,8 +53,9 @@ def get_status():
     if override_status_until is not None and now < override_status_until:
         return str(status)
 
-    current_hour = now.hour
-    if current_hour < START_DAY_HOUR or current_hour >= END_DAY_HOUR:
+    is_work_hours = START_DAY_HOUR <= now.hour < END_DAY_HOUR
+    is_weekend = now.weekday() in {5, 6}
+    if is_weekend or not is_work_hours:
         return str(STATUS_OFF)
 
 
